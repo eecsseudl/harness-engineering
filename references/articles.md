@@ -197,6 +197,59 @@
 | "停止做什么" | Anthropic #4 的 Harness 瘦身原则、Fowler 的假说 |
 | 缓存优化 | 本仓库新增维度——此前文章未深入讨论 API 层成本优化 |
 
+### 7. Anthropic / Lance Martin, Gabe Cemaj, Michael Cohen — Meta-Harness 与基础设施解耦
+
+- **标题：** Scaling Managed Agents: Decoupling the brain from the hands
+- **链接：** [anthropic.com](https://www.anthropic.com/engineering/managed-agents)
+- **作者：** Lance Martin, Gabe Cemaj, Michael Cohen | **日期：** 2026-02-04
+- **翻译：** [works/anthropic-managed-agents-translation.md](../works/anthropic-managed-agents-translation.md)
+- **核心：** 不再讨论"如何设计 harness"，而是追问"如何让 harness 本身成为可替换的基础设施"——提出 meta-harness 概念
+
+- **三个虚拟化组件（借鉴操作系统）：**
+
+| 组件 | 类比 | 接口 |
+|------|------|------|
+| Session | 文件系统 | `emitEvent(id, event)`, `getEvents()`, `getSession(id)` |
+| Harness | 进程 | `wake(sessionId)` — 无状态，可随时替换 |
+| Sandbox | I/O 设备 | `execute(name, input) → string`, `provision({resources})` |
+
+- **Pets vs Cattle 演进：**
+  - 耦合设计：session + harness + sandbox 在同一容器 → 容器 = 宠物，故障即丢失
+  - 解耦设计：三组件独立 → 全部是牲畜，可独立故障和替换
+
+- **安全边界（结构性隔离）：**
+  - Git：访问令牌在沙箱初始化时注入 remote，智能体不触碰令牌
+  - 自定义工具：OAuth 令牌在 vault 中，通过 MCP proxy 调用，harness 永不接触凭证
+  - 核心原则：**令牌永远不可从沙箱内访问**
+
+- **Session 作为外部上下文存储：**
+  - 上下文不再是 harness 内的不可逆决策（compaction/trimming）
+  - Session 日志持久存储完整事件流，`getEvents()` 按需切片取回
+  - 上下文转换（缓存优化、上下文工程）在 harness 层做，与存储层分离
+
+- **性能数据：**
+
+| 指标 | 改善 |
+|------|------|
+| p50 TTFT | ~60% 下降 |
+| p95 TTFT | >90% 下降 |
+
+- **多大脑、多双手：**
+  - 多大脑：无状态 harness 按需启动，容器仅在工具调用时配置
+  - 多双手：每双手 = `execute(name, input) → string`，harness 不关心手是容器、手机还是宝可梦模拟器
+  - 大脑之间可以互相传递双手
+
+- **与其他文章的关联：**
+
+| 本文概念 | 对应文章 |
+|---------|---------|
+| Harness 假设过时 | Anthropic #4 的 Harness 瘦身、#6 的"停止做什么" |
+| Pets vs Cattle | 经典 DevOps 概念，Harness.io 脉络的核心 |
+| Session 外部存储 | LangChain 的 Context Rot、Anthropic #6 的 Compaction |
+| Meta-harness | Fowler 的假说 1："Harness 将成为未来的服务模板" |
+| 安全边界解耦 | HumanLayer 的 MCP 信任边界 |
+| 多大脑多双手 | OpenAI 原文的并发 + 吞吐量理念 |
+
 ---
 
 ## 脉络二：云原生时代的 Harness.io（交付与平台工程）
